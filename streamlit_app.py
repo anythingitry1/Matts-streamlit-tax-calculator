@@ -1,44 +1,42 @@
 import streamlit as st
 import math
 
-# --- Title ---
-st.title("🧾 Break-Even Tax Withholding Calculator")
+# --- App Title ---
+st.title("🧾 Simple Tax Withholding Planner")
+st.write("Estimate your ideal per-paycheck withholding amount to break even at tax time.")
 
-# --- Filing status and state ---
+# --- User Inputs ---
 filing_status = st.selectbox("Filing Status", ["Single", "Married Filing Jointly", "Head of Household"])
-state = st.selectbox("State", ["Utah", "Other (coming soon)"])
-
-# --- Income and pay ---
+state = st.selectbox("State", ["Utah"])
 annual_income = st.number_input("Annual Gross Income ($)", min_value=0.0, value=60000.0, step=1000.0)
 pay_frequency = st.selectbox("Pay Frequency", ["Weekly", "Bi-Weekly", "Semi-Monthly", "Monthly"])
-pay_periods_remaining = st.number_input("Remaining Pay Periods This Year", min_value=1, max_value=52, value=20)
+tax_credits = st.number_input("Tax Credits ($)", min_value=0.0, value=0.0, step=100.0)
+other_income = st.number_input("Other Income (Dividends, Side Jobs, etc.) ($)", min_value=0.0, value=0.0)
 
-# --- Deductions ---
-deduction_type = st.radio("Deduction Type", ["Standard", "Itemized"])
-itemized_deductions = 0
-if deduction_type == "Itemized":
-    itemized_deductions = st.number_input("Total Itemized Deductions ($)", min_value=0.0, value=0.0, step=100.0)
+# --- Frequency Conversion ---
+pay_periods_per_year = {
+    "Weekly": 52,
+    "Bi-Weekly": 26,
+    "Semi-Monthly": 24,
+    "Monthly": 12
+}[pay_frequency]
 
-# --- Credits and other income ---
-other_income = st.number_input("Other Income (Dividends, Interest, etc.) ($)", min_value=0.0, value=0.0)
-tax_credits = st.number_input("Tax Credits ($)", min_value=0.0, value=0.0)
-
-ytd_federal_withheld = st.number_input("YTD Federal Tax Withheld ($)", min_value=0.0, value=5000.0)
-ytd_state_withheld = st.number_input("YTD State Tax Withheld ($)", min_value=0.0, value=1500.0)
-
-# --- Constants (2024 Standard Deductions) ---
+# --- Standard Deductions for 2024 ---
 standard_deductions = {
     "Single": 14600,
     "Married Filing Jointly": 29200,
     "Head of Household": 21900
 }
 
+# --- Federal Brackets (2024 single filer, simplified) ---
 federal_brackets = [
     (0, 0.10),
     (11600, 0.12),
     (47150, 0.22),
-    (100525, 0.24)
-    # Extend further as needed
+    (100525, 0.24),
+    (191950, 0.32),
+    (243725, 0.35),
+    (609350, 0.37)
 ]
 
 utah_tax_rate = 0.0485
@@ -56,37 +54,23 @@ def calculate_federal_tax(taxable_income):
     return tax
 
 def calculate_state_tax(taxable_income):
-    if state == "Utah":
-        return taxable_income * utah_tax_rate
-    return 0
+    return taxable_income * utah_tax_rate
 
 # --- Taxable Income ---
-standard_deduction = standard_deductions.get(filing_status, 0)
-deductions = itemized_deductions if deduction_type == "Itemized" else standard_deduction
+deductions = standard_deductions[filing_status]
 taxable_income = max(0, annual_income + other_income - deductions)
 
+# --- Tax Estimates ---
 federal_tax = calculate_federal_tax(taxable_income)
 state_tax = calculate_state_tax(taxable_income)
-
 total_tax = federal_tax + state_tax - tax_credits
-total_withheld = ytd_federal_withheld + ytd_state_withheld
 
-# --- Recommendations ---
-deficit_or_refund = total_withheld - total_tax
-recommended_withholding_per_period = max(0, (total_tax - total_withheld) / pay_periods_remaining)
+withholding_per_check = total_tax / pay_periods_per_year
 
 # --- Output ---
 st.subheader("📊 Results")
-st.write(f"Estimated Federal Tax: ${federal_tax:,.2f}")
-st.write(f"Estimated State Tax: ${state_tax:,.2f}")
-st.write(f"Total Estimated Tax Liability: ${total_tax:,.2f}")
-st.write(f"Total YTD Withheld: ${total_withheld:,.2f}")
+st.write(f"**Estimated Federal Tax:** ${federal_tax:,.2f}")
+st.write(f"**Estimated State Tax (Utah):** ${state_tax:,.2f}")
+st.write(f"**Total Tax Liability:** ${total_tax:,.2f}")
 
-if deficit_or_refund > 0:
-    st.success(f"You're on track to receive a refund of ${deficit_or_refund:,.2f}")
-elif deficit_or_refund < 0:
-    st.error(f"You may owe approximately ${-deficit_or_refund:,.2f} at tax time")
-else:
-    st.info("You're on track to break even")
-
-st.write(f"✅ Recommended Withholding Per Pay Period (Remaining): ${recommended_withholding_per_period:,.2f}")
+st.success(f"✅ You should withhold approximately **${withholding_per_check:,.2f}** per {pay_frequency.lower()} to break even.")
